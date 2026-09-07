@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextGenDeals Admin</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6f8; padding: 20px; }
+.admin-container { max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+h2 { text-align: center; color: #333; margin-top: 0; }
+.form-group { margin-bottom: 15px; }
+label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+button { width: 100%; padding: 12px; background: #9f2089; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-weight: bold; }
+.product-list { margin-top: 30px; }
+.product-item { background: #f9f9f9; padding: 10px; border-radius: 4px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+.del-btn { background: red; padding: 5px 10px; font-size: 12px; width: auto; cursor: pointer; color: #fff; border: none; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="admin-container">
+<h2>NextGenDeals Admin</h2>
+<div class="form-group">
+<label>Product Name</label>
+<input type="text" id="pName">
+</div>
+<div class="form-group">
+<label>Selling Price (₹)</label>
+<input type="number" id="pPrice">
+</div>
+<div class="form-group">
+<label>Original Price (₹)</label>
+<input type="number" id="pOldPrice">
+</div>
+<div class="form-group">
+<label>Sizes (Comma separated, e.g., S,M,L,XL or 7,8,9)</label>
+<input type="text" id="pSizes">
+</div>
+<div class="form-group">
+<label>Image URLs (Comma separated for swipeable images)</label>
+<input type="text" id="pImages" placeholder="https://link1.jpg, https://link2.jpg">
+</div>
+<button onclick="saveProduct()">Upload Product</button>
+<div class="product-list" id="productList"></div>
+</div>
+<script>
+let products = JSON.parse(localStorage.getItem('myStoreProducts')) || [];
+function saveProduct() {
+let name = document.getElementById('pName').value;
+let price = document.getElementById('pPrice').value;
+let oldPrice = document.getElementById('pOldPrice').value;
+let sizes = document.getElementById('pSizes').value.split(',').map(s => s.trim());
+let images = document.getElementById('pImages').value.split(',').map(i => i.trim());
+let discount = Math.round(((oldPrice - price) / oldPrice) * 100);
+let product = { id: Date.now(), name, price, oldPrice, discount, sizes, images };
+products.push(product);
+localStorage.setItem('myStoreProducts', JSON.stringify(products));
+alert("Product Added!");
+location.reload();
+}
+function renderAdminProducts() {
+let list = document.getElementById('productList');
+list.innerHTML = '<h3>Uploaded Products</h3>';
+products.forEach((p, index) => {
+list.innerHTML += `<div class="product-item"><span>${p.name} - ₹${p.price}</span><button class="del-btn" onclick="deleteProduct(${index})">Delete</button></div>`;
+});
+}
+function deleteProduct(index) {
+products.splice(index, 1);
+localStorage.setItem('myStoreProducts', JSON.stringify(products));
+renderAdminProducts();
+}
+renderAdminProducts();
+</script>
+</body>
+</html>
