@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextGenDeals Admin</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6f8; padding: 20px; }
+.admin-container { max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+h2 { text-align: center; color: #333; margin-top: 0; }
+.form-group { margin-bottom: 15px; }
+label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+button { width: 100%; padding: 12px; background: #9f2089; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-weight: bold; }
+.product-list { margin-top: 30px; }
+.product-item { background: #f9f9f9; padding: 15px; border-radius: 6px; margin-bottom: 12px; display: flex; flex-direction: column; border: 1px solid #ddd; }
+.item-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 10px; }
+.item-title { font-size: 16px; font-weight: bold; color: #333; }
+.item-actions { display: flex; gap: 8px; }
+
+/* New Stock Buttons */
+.stock-btn { background: #03a685; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+.oos-btn { background: #757575; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+.del-btn { background: #d32f2f; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #fff; border: none; border-radius: 4px; font-weight: bold; }
+
+.size-section { margin-top: 5px; font-size: 13px; font-weight: bold; color: #555; }
+.size-badge { display: inline-block; padding: 4px 10px; margin-right: 6px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; user-select: none; }
+.size-in { background: #03a685; color: white; }
+.size-out { background: #ffcccc; color: #d32f2f; text-decoration: line-through; border: 1px solid #d32f2f; }
+
+.preview-box { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.preview-box img { width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+</style>
+</head>
+<body>
+<div class="admin-container">
+<h2>NextGenDeals Admin</h2>
+<div class="form-group">
+<label>Product Name</label>
+<input type="text" id="pName">
+</div>
+<div class="form-group">
+<label>Selling Price (₹)</label>
+<input type="number" id="pPrice">
+</div>
+<div class="form-group">
+<label>Original Price (₹)</label>
+<input type="number" id="pOldPrice">
+</div>
+<div class="form-group">
+<label>Sizes (Comma separated, e.g. S, M, L, XL)</label>
+<input type="text" id="pSizes" value="S, M, L, XL">
+</div>
+<div class="form-group">
+<label>Select Product Photos (Multiple select kar sakte ho)</label>
+<input type="file" id="pFile" accept="image/*" multiple onchange="previewImages()">
+<div class="preview-box" id="prevBox"></div>
+</div>
+<button id="uploadBtn" onclick="saveProduct()">Upload Product</button>
+<div class="product-list" id="productList"><h3>Uploaded Products</h3></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, push, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBnbOoxoxS2huUDd0JXZSMwwRdFAYUX3W8",
+  authDomain: "product-28cb6.firebaseapp.com",
+  databaseURL: "https://product-28cb6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "product-28cb6",
+  storageBucket: "product-28cb6.firebasestorage.app",
+  messagingSenderId: "335813682518",
+  appId: "1:335813682518:web:1322070cf91993026462f7",
+  measurementId: "G-KSNR7EN47E"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+window.currentProducts = {}; // Global variable to store current data
+
+window.previewImages = function() {
+    const files = document.getElementById('pFile').files;
+    const box = document.getElementById('prevBox');
+    box.innerHTML = '';
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            box.innerHTML += `<img src="${e.target.result}">`;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function compressAndConvert(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxDim = 800;
+                if (width > height && width > maxDim) {
+                    height = (height * maxDim) / width;
+                    width = maxDim;
+                } else if (height > maxDim) {
+                    width = (width * maxDim) / height;
+                    height = maxDim;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+window.saveProduct = async function() {
+    let name = document.getElementById('pName').value.trim();
+    let price = document.getElementById('pPrice').value.trim();
+    let oldPrice = document.getElementById('pOldPrice').value.trim();
+    let sizes = document.getElementById('pSizes').value.split(',').map(s => s.trim());
+    let fileInput = document.getElementById('pFile');
+
+    if(!name || !price || !oldPrice) {
+        alert("Saare fields bharo!");
+        return;
+    }
+    if(fileInput.files.length === 0) {
+        alert("Kam se kam 1 photo select karo!");
+        return;
+    }
+
+    const btn = document.getElementById('uploadBtn');
+    btn.innerText = "Uploading Photos...";
+    btn.disabled = true;
+
+    try {
+        let imagePromises = Array.from(fileInput.files).map(file => compressAndConvert(file));
+        let base64Images = await Promise.all(imagePromises);
+        let discount = Math.round(((oldPrice - price) / oldPrice) * 100);
+
+        const productsRef = ref(db, 'products');
+        const newProductRef = push(productsRef);
+        
+        // Add default stock details
+        await set(newProductRef, {
+            name: name,
+            price: price,
+            oldPrice: oldPrice,
+            discount: discount,
+            sizes: sizes,
+            images: base64Images,
+            inStock: true,
+            outOfStockSizes: []
+        });
+
+        alert("Product Successfully Live Ho Gaya!");
+        location.reload();
+    } catch(err) {
+        alert("Error: " + err.message);
+        btn.innerText = "Upload Product";
+        btn.disabled = false;
+    }
+}
+
+const productsRef = ref(db, 'products');
+onValue(productsRef, (snapshot) => {
+    let list = document.getElementById('productList');
+    list.innerHTML = '<h3>Uploaded Products</h3>';
+    const data = snapshot.val();
+    window.currentProducts = data || {}; 
+
+    if(data) {
+        Object.keys(data).forEach((key) => {
+            let p = data[key];
+            let isMainOos = p.inStock === false; 
+            let oosSizes = p.outOfStockSizes || [];
+
+            // Main Product Toggle Button
+            let mainStockBtn = isMainOos 
+                ? `<button class="oos-btn" onclick="toggleMainStock('${key}')">Mark In Stock</button>` 
+                : `<button class="stock-btn" onclick="toggleMainStock('${key}')">Mark Out of Stock</button>`;
+
+            // Individual Size Badges
+            let sizeBadges = '';
+            if(p.sizes) {
+                sizeBadges = p.sizes.map(s => {
+                    let isSizeOos = oosSizes.includes(s);
+                    let badgeClass = isSizeOos ? 'size-out' : 'size-in';
+                    return `<span class="size-badge ${badgeClass}" onclick="toggleSizeStock('${key}', '${s}')" title="Click to toggle stock">${s}</span>`;
+                }).join('');
+            }
+
+            list.innerHTML += `
+            <div class="product-item" style="${isMainOos ? 'opacity: 0.6;' : ''}">
+                <div class="item-header">
+                    <span class="item-title">${p.name} - ₹${p.price}</span>
+                    <div class="item-actions">
+                        ${mainStockBtn}
+                        <button class="del-btn" onclick="deleteProduct('${key}')">Delete</button>
+                    </div>
+                </div>
+                <div class="size-section">
+                    Sizes Stock (Click to change): <br><br> ${sizeBadges}
+                </div>
+            </div>`;
+        });
+    }
+});
+
+// Toggle Whole Product Stock
+window.toggleMainStock = function(key) {
+    let p = window.currentProducts[key];
+    let currentStatus = p.inStock !== false; // Check if currently in stock
+    const productRef = ref(db, 'products/' + key);
+    update(productRef, { inStock: !currentStatus });
+}
+
+// Toggle Individual Size Stock
+window.toggleSizeStock = function(key, size) {
+    let p = window.currentProducts[key];
+    let oosSizes = p.outOfStockSizes || [];
+    
+    if (oosSizes.includes(size)) {
+        // Agar pehle se out of stock tha, toh usko list se hatao (In stock ho jayega)
+        oosSizes = oosSizes.filter(s => s !== size);
+    } else {
+        // Agar in stock tha, toh usko OOS list mein daal do
+        oosSizes.push(size);
+    }
+    
+    const productRef = ref(db, 'products/' + key);
+    update(productRef, { outOfStockSizes: oosSizes });
+}
+
+window.deleteProduct = function(key) {
+    if(confirm("Ye product delete karna hai?")) {
+        const productRef = ref(db, 'products/' + key);
+        remove(productRef).then(() => {
+            alert("Deleted!");
+        });
+    }
+}
+</script>
+</body>
+</html>
